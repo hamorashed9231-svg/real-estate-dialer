@@ -112,7 +112,8 @@ export async function POST(req: NextRequest) {
         console.log(`[WEBHOOK IDEMPOTENCY] Event ${eventId} (${eventType}) already processed. Skipping duplicate processing.`);
         return NextResponse.json({ success: true, duplicated: true });
       }
-      return NextResponse.json({ error: 'Failed to record idempotency log', details: idempotencyError.message }, { status: 500 });
+      console.error('[WEBHOOK ERROR] Failed to record idempotency log:', idempotencyError.message);
+      return NextResponse.json({ success: false, error: 'Failed to record idempotency log', details: idempotencyError.message }, { status: 200 });
     }
 
     let statusUpdate: 'initiated' | 'ringing' | 'answered' | 'completed' | 'failed' | null = null;
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[DATABASE ERROR] Webhook call status update failed:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message }, { status: 200 });
       }
     }
 
@@ -167,13 +168,13 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[DATABASE ERROR] Webhook call recording url update failed:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message }, { status: 200 });
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('[WEBHOOK EXCEPTION] Signature or payload parsing crashed:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message }, { status: 200 });
   }
 }

@@ -39,6 +39,14 @@ export function useDialer({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const callSubscriptionRef = useRef<RealtimeChannel | null>(null);
   const queueSubscriptionRef = useRef<RealtimeChannel | null>(null);
+  const mockTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const safetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper: clear mock transition timers
+  const clearMockTimers = useCallback(() => {
+    mockTimersRef.current.forEach((t) => clearTimeout(t));
+    mockTimersRef.current = [];
+  }, []);
 
   // Helper: fetch headers
   const getAuthHeaders = useCallback(() => {
@@ -296,6 +304,54 @@ export function useDialer({
     }
   };
 
+  // Recovery function for stuck/failed calls
+  const handleCallFailure = useCallback(async (targetCall: Call) => {
+    if (!supabase) return;
+    setLoading(true);
+    try {
+      console.log('[SAFETY TIMEOUT] Recovering stuck call:', targetCall.id);
+      await fetch('/api/calls/update', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          callId: targetCall.id,
+          status: 'failed',
+          campaignLeadStatus: 'pending', // Recycle to queue
+        }),
+      });
+
+      setCallStatus('failed');
+      setActiveCall(null);
+      setError('Call connection timed out. Lead has been recycled to the queue.');
+    } catch (err: any) {
+      console.error('[RECOVERY ERROR]', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, getAuthHeaders]);
+
+  // Safety timeout recovery effect
+  useEffect(() => {
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current);
+      safetyTimeoutRef.current = null;
+    }
+
+    if ((callStatus === 'initiated' || callStatus === 'ringing') && activeCall) {
+      const targetCall = activeCall;
+      safetyTimeoutRef.current = setTimeout(() => {
+        console.warn(`[SAFETY TIMEOUT] Call stuck in '${callStatus}' state. Automatically failing.`);
+        handleCallFailure(targetCall);
+      }, 15000);
+    }
+
+    return () => {
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+      }
+    };
+  }, [callStatus, activeCall, handleCallFailure]);
+
   // Start Call (Dials via Telnyx/Mock and logs in database)
   const startCall = async () => {
     if (!supabase || !currentLead) return;
@@ -324,6 +380,32 @@ export function useDialer({
       const call: Call = data.call;
       setActiveCall(call);
       setCallStatus(call.status);
+
+      // Clear any existing mock timers
+      clearMockTimers();
+
+      // If mock call, simulate transitions: initiated -> ringing (after 2s) -> answered (after 5s)
+      if (call.voip_call_sid?.startsWith('mock_') || data.provider === 'mock') {
+        const rTimer = setTimeout(async () => {
+          setCallStatus('ringing');
+          fetch('/api/calls/update', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ callId: call.id, status: 'ringing' }),
+          }).catch(err => console.error('Mock ringing DB update failed:', err));
+        }, 2000);
+
+        const aTimer = setTimeout(async () => {
+          setCallStatus('answered');
+          fetch('/api/calls/update', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ callId: call.id, status: 'answered' }),
+          }).catch(err => console.error('Mock answered DB update failed:', err));
+        }, 5000);
+
+        mockTimersRef.current = [rTimer, aTimer];
+      }
 
       // Establish Supabase Realtime channel to subscribe to updates on the call row
       if (callSubscriptionRef.current) {
@@ -358,11 +440,19 @@ export function useDialer({
     }
   };
 
+
   // End Call (Tear down call/Hangup)
   const endCall = async () => {
     if (!supabase || !activeCall) return;
 
+    clearMockTimers();
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current);
+      safetyTimeoutRef.current = null;
+    }
+
     setLoading(true);
+
     try {
       const response = await fetch('/api/calls/update', {
         method: 'POST',
@@ -430,7 +520,14 @@ export function useDialer({
         callSubscriptionRef.current = null;
       }
 
+      clearMockTimers();
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+        safetyTimeoutRef.current = null;
+      }
+
       // Update counters
+
       fetchProductivityStats();
       if (activeCampaignId) {
         fetchQueueMetrics(activeCampaignId);
@@ -448,12 +545,20 @@ export function useDialer({
       if (!supabase) return;
       if (callSubscriptionRef.current) {
         supabase.removeChannel(callSubscriptionRef.current);
+        callSubscriptionRef.current = null;
       }
       if (queueSubscriptionRef.current) {
         supabase.removeChannel(queueSubscriptionRef.current);
+        queueSubscriptionRef.current = null;
+      }
+      clearMockTimers();
+      if (safetyTimeoutRef.current) {
+        clearTimeout(safetyTimeoutRef.current);
+        safetyTimeoutRef.current = null;
       }
     };
-  }, [supabase]);
+  }, [supabase, clearMockTimers]);
+
 
   return {
     activeCampaignId,
