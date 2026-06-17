@@ -39,7 +39,7 @@ services:
         value: "dummy_dnc_api_key"
 
   # 2. Vite Static Web Hosting
-  - type: static
+  - type: static_site
     name: propdial-frontend
     plan: free
     buildCommand: cd frontend && npm install && npm run build
