@@ -39,11 +39,12 @@ services:
         value: "dummy_dnc_api_key"
 
   # 2. Vite Static Web Hosting
-  - type: static_site
+  - type: web
     name: propdial-frontend
+    runtime: static
     plan: free
     buildCommand: cd frontend && npm install && npm run build
-    publishDir: frontend/dist
+    staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
         value: https://propdial-backend.onrender.com # Point to the backend Web Service URL
