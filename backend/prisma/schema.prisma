@@ -1,0 +1,192 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// 1. Company Table (Tenant Root)
+model Company {
+  id            String          @id @default(uuid())
+  name          String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  users         User[]
+  leads         Lead[]
+  campaigns     Campaign[]
+  campaignLeads CampaignLead[]
+  calls         Call[]
+  dncRecords    DNCRecord[]
+  callerIDPools CallerIDPool[]
+
+  @@map("companies")
+}
+
+// 2. User Table (Authentication & RBAC)
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  password       String
+  firstName      String?
+  lastName       String?
+  role           String         @default("agent") // super_admin, admin, manager, agent
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  calls          Call[]
+  notes          Note[]
+  lockedLeads    CampaignLead[]
+  agentState     AgentState?
+
+  @@map("users")
+}
+
+// 3. Lead Table (CRM Data)
+model Lead {
+  id            String         @id @default(uuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  phone         String         // Standardized E.164 format
+  email         String?
+  status        String         @default("New") // New, Contacted, Interested, Not Interested, Callback, Converted
+  customFields  String?                        // Dynamic fields for real estate metadata
+  isDeleted     Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  campaignLeads CampaignLead[]
+  calls         Call[]
+  notes         Note[]
+
+  @@unique([companyId, phone])
+  @@index([companyId, status])
+  @@map("leads")
+}
+
+// 4. Campaign Table
+model Campaign {
+  id            String         @id @default(uuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String
+  mode          String         @default("power") // power, preview
+  linesPerAgent Int            @default(1)       // Outbound lines per active agent (1, 2, 3)
+  status        String         @default("paused") // active, paused
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  campaignLeads CampaignLead[]
+  calls         Call[]
+
+  @@map("campaigns")
+}
+
+// 5. CampaignLead Table (Queue Mechanics)
+model CampaignLead {
+  id           String    @id @default(uuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  status       String    @default("pending") // pending, calling, completed, skipped
+  priority     Int       @default(0)
+  lockedBy     String?   // UUID of the agent currently dialing this lead
+  lockedByUser User?     @relation(fields: [lockedBy], references: [id], onDelete: SetNull)
+  lockedAt     DateTime? // Timestamp for dynamic lock reclamation
+  callAttempts Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([campaignId, leadId])
+  @@index([companyId, campaignId, status, priority])
+  @@map("campaign_leads")
+}
+
+// 6. Call Table (Twilio Log Data)
+model Call {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaignId   String?
+  campaign     Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  leadId       String
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  phoneNumber  String    // Dialed phone number
+  status       String    @default("initiated") // initiated, ringing, answered, completed, failed, busy, no-answer
+  duration     Int?      // Call duration in seconds
+  voipCallSid  String?   @unique // Twilio Call SID
+  recordingUrl String?
+  disposition  String?   // Outcome (e.g. callback, interested, busy)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([companyId, voipCallSid])
+  @@map("calls")
+}
+
+// 7. Note Table (Agent logs)
+model Note {
+  id        String   @id @default(uuid())
+  companyId String
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  noteText  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notes")
+}
+
+// 8. DNCRecord Table (TCPA Compliance Scrubbing)
+model DNCRecord {
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  phone       String    // Standardized phone number
+  consent     Boolean   @default(false)
+  consentDate DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([companyId, phone])
+  @@map("dnc_records")
+}
+
+// 9. CallerIDPool Table (Local Presence Dialing Pool)
+model CallerIDPool {
+  id          String   @id @default(uuid())
+  phoneNumber String   // E.164 caller ID number
+  areaCode    String   // 3-digit area code
+  state       String   // State name/abbreviation
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, phoneNumber])
+  @@index([companyId, areaCode])
+  @@map("caller_id_pools")
+}
+
+// 10. AgentState Table (Real-time monitoring stats)
+model AgentState {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("offline") // offline, available, on_call, wrap_up, break
+  socketId  String?  // Active websocket connection ID
+  updatedAt DateTime @updatedAt
+
+  @@map("agent_states")
+}
