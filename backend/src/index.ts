@@ -35,8 +35,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin, allowed local origins, or localtunnel subdomains
+      if (!origin || allowedOrigins.includes(origin) || origin.includes('loca.lt')) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
