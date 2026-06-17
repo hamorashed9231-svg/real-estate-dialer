@@ -16,7 +16,8 @@ services:
           name: propdial-db
           property: connectionString
       - key: REDIS_URL
-        fromDatabase:
+        fromService:
+          type: keyvalue
           name: propdial-redis
           property: connectionString
       - key: JWT_SECRET
@@ -54,12 +55,13 @@ services:
         source: /*
         destination: /index.html
 
-# 3. Managed PostgreSQL Database
+  # 3. Managed KeyValue (Redis-compatible Valkey) Instance
+  - type: keyvalue
+    name: propdial-redis
+    plan: free
+    ipAllowList: []
+
+# 4. Managed PostgreSQL Database
 databases:
   - name: propdial-db
-    plan: free
-
-# 4. Managed KeyValue (Redis-compatible Valkey) Database
-keyvalue:
-  - name: propdial-redis
     plan: free
