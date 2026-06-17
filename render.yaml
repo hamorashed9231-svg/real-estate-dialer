@@ -8,7 +8,7 @@ services:
     startCommand: cd backend && npx prisma db push && npm start
     envVars:
       - key: PORT
-        value: 5000
+        value: "5000"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -39,9 +39,8 @@ services:
         sync: false
 
   # 2. Vite Static Web Hosting
-  - type: web
+  - type: static
     name: propdial-frontend
-    env: static
     plan: free
     buildCommand: cd frontend && npm install && npm run build
     publishDir: frontend/dist
@@ -51,16 +50,15 @@ services:
     routes:
       # Single Page Application fallback routing
       - type: rewrite
-        src: /*
-        dest: /index.html
+        source: /*
+        destination: /index.html
 
-# 3. Managed Databases (PostgreSQL and Redis KeyValue)
+# 3. Managed PostgreSQL Database
 databases:
-  # Managed PostgreSQL Database
   - name: propdial-db
     plan: free
 
-  # Managed KeyValue (Redis compatible) database
+# 4. Managed KeyValue (Redis-compatible Valkey) Database
+keyvalue:
   - name: propdial-redis
-    type: keyvalue
     plan: free
