@@ -24,19 +24,19 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: TWILIO_ACCOUNT_SID
-        sync: false
+        value: "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
       - key: TWILIO_AUTH_TOKEN
-        sync: false
+        value: "dummy_auth_token"
       - key: TWILIO_TWIML_APP_SID
-        sync: false
+        value: "APXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
       - key: TWILIO_API_KEY
-        sync: false
+        value: "SKXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
       - key: TWILIO_API_SECRET
-        sync: false
+        value: "dummy_api_secret"
       - key: TWILIO_NUMBER
-        sync: false
+        value: "+1234567890"
       - key: DNC_API_KEY
-        sync: false
+        value: "dummy_dnc_api_key"
 
   # 2. Vite Static Web Hosting
   - type: static
