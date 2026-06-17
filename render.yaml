@@ -12,9 +12,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: true
+        value: postgresql://neondb_owner:npg_YZ04TWiQsGBe@ep-nameless-mud-ahv0xjpp-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
       - key: REDIS_URL
-        sync: true
+        value: rediss://default:gQAAAAAAAkxPAAIgcDIwYmU5ZmNhY2FiYjg0ZmY2YWFhOTI2Y2JjYmIzOWQyOQ@humorous-glider-150607.upstash.io:6379
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
