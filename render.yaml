@@ -16,9 +16,8 @@ services:
           name: propdial-db
           property: connectionString
       - key: REDIS_URL
-        fromService:
+        fromDatabase:
           name: propdial-redis
-          type: redis
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
@@ -39,30 +38,29 @@ services:
       - key: DNC_API_KEY
         sync: false
 
-  # 2. Redis Instance for Caching and Background Bull Queues
-  - type: redis
-    name: propdial-redis
-    plan: free
-    ipAllowList: [] # Internal access only
-
-  # 3. Vite Static Web Hosting
+  # 2. Vite Static Web Hosting
   - type: web
     name: propdial-frontend
     env: static
     plan: free
     buildCommand: cd frontend && npm install && npm run build
     publishDir: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://propdial-backend.onrender.com # Point to the backend Web Service URL
     routes:
-      # Rewrite frontend API calls to point to the backend web service URL
-      - type: rewrite
-        src: /api/*
-        dest: https://propdial-backend.onrender.com/*
       # Single Page Application fallback routing
       - type: rewrite
         src: /*
         dest: /index.html
 
-# 4. PostgreSQL Database Instance
+# 3. Managed Databases (PostgreSQL and Redis KeyValue)
 databases:
+  # Managed PostgreSQL Database
   - name: propdial-db
+    plan: free
+
+  # Managed KeyValue (Redis compatible) database
+  - name: propdial-redis
+    type: keyvalue
     plan: free

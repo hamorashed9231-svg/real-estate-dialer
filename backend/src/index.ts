@@ -35,8 +35,14 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin, allowed local origins, or public tunnel subdomains
-      if (!origin || allowedOrigins.includes(origin) || origin.includes('loca.lt') || origin.includes('serveousercontent.com')) {
+      // Allow requests with no origin, allowed local origins, or public tunnel / cloud subdomains
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.includes('loca.lt') ||
+        origin.includes('serveousercontent.com') ||
+        origin.includes('onrender.com')
+      ) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
