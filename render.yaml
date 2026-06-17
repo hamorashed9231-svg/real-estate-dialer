@@ -1,0 +1,68 @@
+services:
+  # 1. Express Backend Web Service
+  - type: web
+    name: propdial-backend
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npx prisma db push && npm start
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: propdial-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: propdial-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_TWIML_APP_SID
+        sync: false
+      - key: TWILIO_API_KEY
+        sync: false
+      - key: TWILIO_API_SECRET
+        sync: false
+      - key: TWILIO_NUMBER
+        sync: false
+      - key: DNC_API_KEY
+        sync: false
+
+  # 2. Redis Instance for Caching and Background Bull Queues
+  - type: redis
+    name: propdial-redis
+    plan: free
+    ipAllowList: [] # Internal access only
+
+  # 3. Vite Static Web Hosting
+  - type: web
+    name: propdial-frontend
+    env: static
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    publishDir: frontend/dist
+    routes:
+      # Rewrite frontend API calls to point to the backend web service URL
+      - type: rewrite
+        src: /api/*
+        dest: https://propdial-backend.onrender.com/*
+      # Single Page Application fallback routing
+      - type: rewrite
+        src: /*
+        dest: /index.html
+
+# 4. PostgreSQL Database Instance
+databases:
+  - name: propdial-db
+    plan: free
