@@ -10,7 +10,8 @@ RUN npm ci --prefix backend --production=false
 # Copy backend source code
 COPY backend/ ./backend/
 
-# Generate Prisma Client
+# Generate Prisma Client (uses dummy DATABASE_URL for build-time validation)
+ENV DATABASE_URL="postgresql://mock:mock@localhost:5432/mock"
 RUN npx prisma generate --schema=backend/prisma/schema.prisma
 
 # Build the backend project
