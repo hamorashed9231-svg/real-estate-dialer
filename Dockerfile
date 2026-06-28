@@ -22,4 +22,4 @@ RUN npm run build --prefix backend
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "./backend/node_modules/.bin/prisma db push --schema=backend/prisma/schema.prisma && node backend/dist/index.js"]
+CMD ["sh", "-c", "./backend/node_modules/.bin/prisma db push --schema=backend/prisma/schema.prisma --accept-data-loss && node backend/dist/index.js"]
